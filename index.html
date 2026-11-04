@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>บันทึก pH ดิน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Mitr:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one narrow column built for a phone in the field. Header, two tabs (record / history),
+   a single form card, and a history list grouped by sampling day. The only loud color is the
+   indicator-paper hue that follows each pH value; everything else stays quiet soil and lichen neutrals. */
+:root {
+  --bg: #EDF0EA;
+  --surface: #FAFBF8;
+  --ink: #1E2820;
+  --muted: #59675C;
+  --line: #D2D9CF;
+  --accent: #4B3626;
+  --on-accent: #FBF7F2;
+  --focus: #2F6B9A;
+  --danger: #A3361F;
+  --chip-s: 62%;
+  --chip-bg-l: 88%;
+  --chip-fg-l: 22%;
+  --f-display: "Mitr", "IBM Plex Sans Thai", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141915; --surface: #1C231E; --ink: #E5ECE4; --muted: #9BA99D; --line: #2E3931;
+    --accent: #E2C7A9; --on-accent: #241A12; --focus: #7DB6E0; --danger: #F08C75;
+    --chip-s: 38%; --chip-bg-l: 24%; --chip-fg-l: 84%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141915; --surface: #1C231E; --ink: #E5ECE4; --muted: #9BA99D; --line: #2E3931;
+  --accent: #E2C7A9; --on-accent: #241A12; --focus: #7DB6E0; --danger: #F08C75;
+  --chip-s: 38%; --chip-bg-l: 24%; --chip-fg-l: 84%;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.55;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* header */
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--f-display); font-weight: 500; font-size: 28px; line-height: 1.2; margin: 0; text-wrap: balance; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.count { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+/* tabs */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tab { border: 0; background: transparent; border-radius: 9px; padding: 11px 8px; min-height: 46px; font-weight: 500; cursor: pointer; color: var(--muted); }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
+
+/* form card */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+form { display: flex; flex-direction: column; gap: 20px; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+legend, .lbl { padding: 0; font-size: 14px; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
+fieldset > .seg, fieldset > .ph-grid { margin: 0; }
+input[type="date"], textarea, select {
+  width: 100%; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--line);
+  border-radius: 10px; background: var(--bg); font-size: 16px;
+}
+textarea { min-height: 72px; resize: vertical; }
+
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.opt { position: relative; min-width: 0; }
+.opt input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; }
+.opt span {
+  display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 50px; padding: 8px;
+  border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg); font-weight: 500; text-align: center;
+}
+.opt input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.opt input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
+.opt svg, .pill svg { flex: none; }
+
+.ph-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ph-in { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ph-in span { font-size: 13px; color: var(--muted); text-align: center; }
+.ph-in input {
+  width: 100%; min-width: 0; padding: 12px 4px; text-align: center; font-size: 24px; font-weight: 600;
+  font-variant-numeric: tabular-nums; border: 1.5px solid var(--line); border-bottom-width: 5px;
+  border-radius: 10px; background: var(--bg);
+}
+.ph-in input[data-filled] { border-bottom-color: hsl(var(--h) 60% 50%); }
+.ph-in input::placeholder { color: var(--muted); opacity: .55; font-weight: 400; }
+
+.meter { margin-top: 16px; }
+.meter-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 14px; color: var(--muted); }
+.meter-val { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.meter-val strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.tag { padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 500; background: hsl(var(--h) var(--chip-s) var(--chip-bg-l)); color: hsl(var(--h) 70% var(--chip-fg-l)); }
+.bar { position: relative; height: 10px; border-radius: 5px; background: var(--grad, var(--line)); }
+.mark { position: absolute; top: -5px; bottom: -5px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); }
+.ticks { display: grid; grid-template-columns: 1fr auto 1fr; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.ticks span:nth-child(2) { text-align: center; }
+.ticks span:nth-child(3) { text-align: right; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 20px; border-radius: 12px; border: 1.5px solid var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 600; cursor: pointer; }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); font-weight: 500; }
+.btn.small { min-height: 42px; padding: 0 14px; font-size: 14px; }
+.actions { display: flex; flex-direction: column; gap: 10px; }
+.status { margin: 0; min-height: 1.5em; font-size: 14px; color: var(--muted); }
+.status.err { color: var(--danger); }
+.banner { margin: 0; padding: 10px 12px; border-radius: 10px; border: 1.5px dashed var(--accent); font-size: 14px; }
+
+/* history */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+.filters select { min-height: 44px; font-size: 15px; }
+.summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.day { display: flex; flex-direction: column; gap: 8px; }
+.day h3 { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--muted); }
+.entry { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.meta strong { font-weight: 600; }
+.meta .dim { color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 99px; font-size: 13px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.chip { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 62px; padding: 5px 10px; border-radius: 8px; background: hsl(var(--h) var(--chip-s) var(--chip-bg-l)); color: hsl(var(--h) 70% var(--chip-fg-l)); line-height: 1.2; }
+.chip small { font-size: 11px; opacity: .85; }
+.chip b { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chip.mean { margin-left: auto; background: transparent; border: 1.5px solid hsl(var(--h) 55% 50%); color: var(--ink); }
+.note { margin: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.row-actions { display: flex; justify-content: flex-end; align-items: center; gap: 4px; flex-wrap: wrap; }
+.link { border: 0; background: transparent; min-height: 40px; padding: 0 12px; border-radius: 8px; color: var(--muted); font-size: 14px; font-weight: 500; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.link.danger { color: var(--danger); }
+.confirm-q { font-size: 14px; margin-right: auto; }
+.empty { padding: 28px 18px; text-align: center; color: var(--muted); border: 1.5px dashed var(--line); border-radius: 12px; }
+.foot { margin: 0; font-size: 12.5px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>บันทึก pH ดิน</h1>
+      <p class="sub">ม.นเรศวร · จภ.พล. · พื้นที่ 1 และ 2</p>
+    </div>
+    <div class="count" id="count" aria-live="polite"></div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="เมนู">
+    <button class="tab" role="tab" id="tab-new" aria-controls="panel-new" aria-selected="true" type="button">บันทึกใหม่</button>
+    <button class="tab" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" type="button">ประวัติ</button>
+  </div>
+
+  <section id="panel-new" role="tabpanel" aria-labelledby="tab-new">
+    <div class="card">
+      <form id="f" novalidate>
+        <p class="banner" id="banner" hidden></p>
+
+        <fieldset>
+          <legend>วันที่เก็บตัวอย่าง</legend>
+          <input type="date" id="date" name="date" required>
+        </fieldset>
+
+        <fieldset>
+          <legend>สถานที่</legend>
+          <div class="seg">
+            <label class="opt"><input type="radio" name="place" value="nu" checked><span>ม.นเรศวร</span></label>
+            <label class="opt"><input type="radio" name="place" value="police"><span>จภ.พล.</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>พื้นที่</legend>
+          <div class="seg">
+            <label class="opt"><input type="radio" name="area" value="1" checked><span>พื้นที่ 1</span></label>
+            <label class="opt"><input type="radio" name="area" value="2"><span>พื้นที่ 2</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>ช่วงเวลา</legend>
+          <div class="seg">
+            <label class="opt"><input type="radio" name="period" value="day" checked><span><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>กลางวัน</span></label>
+            <label class="opt"><input type="radio" name="period" value="night"><span><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>กลางคืน</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>ค่า pH ของแต่ละตัวอย่าง</legend>
+          <div class="ph-grid">
+            <label class="ph-in"><span>ตัวอย่าง 1</span><input type="number" id="p1" inputmode="decimal" step="0.01" min="0" max="14" placeholder="0.0"></label>
+            <label class="ph-in"><span>ตัวอย่าง 2</span><input type="number" id="p2" inputmode="decimal" step="0.01" min="0" max="14" placeholder="0.0"></label>
+            <label class="ph-in"><span>ตัวอย่าง 3</span><input type="number" id="p3" inputmode="decimal" step="0.01" min="0" max="14" placeholder="0.0"></label>
+          </div>
+          <div class="meter">
+            <div class="meter-top">
+              <span id="meanLabel">ค่าเฉลี่ย</span>
+              <span class="meter-val"><strong id="meanVal">–</strong><span class="tag" id="meanTag" hidden></span></span>
+            </div>
+            <div class="bar" id="bar"><i class="mark" id="mark" hidden></i></div>
+            <div class="ticks"><span>0 กรด</span><span>7 กลาง</span><span>14 ด่าง</span></div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <label class="lbl" for="note">หมายเหตุ (ไม่บังคับ)</label>
+          <textarea id="note" name="note" maxlength="300" placeholder="เช่น ฝนตกก่อนเก็บ, ดินแฉะ"></textarea>
+        </fieldset>
+
+        <div class="actions">
+          <button class="btn" type="submit" id="save">บันทึก</button>
+          <button class="btn ghost" type="button" id="cancelEdit" hidden>ยกเลิกการแก้ไข</button>
+          <p class="status" id="status" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+    <h2 class="sr">ประวัติการบันทึก</h2>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="filters">
+        <label>สถานที่
+          <select id="fPlace"><option value="">ทั้งหมด</option><option value="nu">ม.นเรศวร</option><option value="police">จภ.พล.</option></select>
+        </label>
+        <label>พื้นที่
+          <select id="fArea"><option value="">ทั้งหมด</option><option value="1">พื้นที่ 1</option><option value="2">พื้นที่ 2</option></select>
+        </label>
+        <label>ช่วงเวลา
+          <select id="fPeriod"><option value="">ทั้งหมด</option><option value="day">กลางวัน</option><option value="night">กลางคืน</option></select>
+        </label>
+      </div>
+      <div class="summary">
+        <span id="summary"></span>
+        <button class="btn ghost small" type="button" id="csv" hidden>ดาวน์โหลด CSV</button>
+      </div>
+      <p class="status" id="histStatus" role="status" aria-live="polite" hidden></p>
+      <div id="list" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+(function () {
+  var PLACES = { nu: "ม.นเรศวร", police: "จภ.พล." };
+  var PERIODS = { day: "กลางวัน", night: "กลางคืน" };
+  var LS_KEY = "ph-soil-readings-v1";
+  var HUES = [[3, 0], [4, 8], [5, 30], [6, 55], [7, 120], [8, 175], [9, 215], [10, 250]];
+  var SUN = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>';
+  var MOON = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+  var records = [];
+  var db = null;
+  var downloads = null;
+  var mode = "loading"; // loading | db | local
+  var loaded = false;
+  var editId = null;
+  var confirmId = null;
+
+  function $(id) { return document.getElementById(id); }
+  var form = $("f");
+  var phIn = [$("p1"), $("p2"), $("p3")];
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function hueFor(v) {
+    if (v <= HUES[0][0]) return HUES[0][1];
+    for (var i = 1; i < HUES.length; i++) {
+      if (v <= HUES[i][0]) {
+        var a = HUES[i - 1], b = HUES[i];
+        return Math.round(a[1] + (b[1] - a[1]) * (v - a[0]) / (b[0] - a[0]));
+      }
+    }
+    return HUES[HUES.length - 1][1];
+  }
+  function fmt(v) {
+    var s = (Math.round(v * 100) / 100).toString();
+    return s.indexOf(".") >= 0 ? s : s + ".0";
+  }
+  function mean(arr) { return arr.reduce(function (a, b) { return a + b; }, 0) / arr.length; }
+  function phWord(m) { return m < 6.5 ? "เป็นกรด" : m <= 7.5 ? "ใกล้กลาง" : "เป็นด่าง"; }
+  function validPh(v) { return typeof v === "number" && isFinite(v) && v >= 0 && v <= 14; }
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function todayIso() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+  function fmtDate(iso) {
+    try {
+      return new Date(iso + "T00:00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    } catch (e) { return iso; }
+  }
+  function withTimeout(p, ms) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject({ code: "timeout" }); }, ms);
+      p.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+  function setStatus(msg, isErr) {
+    var el = $("status");
+    el.textContent = msg || "";
+    el.className = "status" + (isErr ? " err" : "");
+  }
+  function writeError(e) {
+    if (e && e.code === "invalid_argument") return "บัญชีนี้ไม่มีสิทธิ์บันทึกข้อมูลในหน้านี้";
+    if (e && e.code === "timeout") return "ยังยืนยันการบันทึกไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง";
+    return "บันทึกไม่สำเร็จ ลองอีกครั้ง";
+  }
+
+  /* ---------- storage ---------- */
+  function loadLocal() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(records)); } catch (e) {}
+  }
+  function persist(rec) {
+    if (mode === "db") return withTimeout(db.collection("readings").doc(rec.id).set(rec), 10000);
+    var i = records.findIndex(function (r) { return r.id === rec.id; });
+    if (i >= 0) records[i] = rec; else records.push(rec);
+    saveLocal(); renderHistory();
+    return Promise.resolve();
+  }
+  function removeRec(id) {
+    if (mode === "db") return withTimeout(db.collection("readings").doc(id).delete(), 10000);
+    records = records.filter(function (r) { return r.id !== id; });
+    saveLocal(); renderHistory();
+    return Promise.resolve();
+  }
+
+  /* ---------- form ---------- */
+  function buildGradient() {
+    var stops = [];
+    for (var v = 0; v <= 14; v++) stops.push("hsl(" + hueFor(v) + " 70% 52%) " + (v / 14 * 100) + "%");
+    $("bar").style.setProperty("--grad", "linear-gradient(90deg," + stops.join(",") + ")");
+  }
+  function readPh(el) {
+    var s = el.value.trim();
+    return s === "" ? NaN : Number(s);
+  }
+  function updateLive() {
+    var vals = phIn.map(readPh);
+    phIn.forEach(function (el, i) {
+      if (validPh(vals[i])) { el.style.setProperty("--h", hueFor(vals[i])); el.setAttribute("data-filled", ""); }
+      else el.removeAttribute("data-filled");
+    });
+    var ok = vals.filter(validPh);
+    var tag = $("meanTag"), mark = $("mark");
+    if (!ok.length) {
+      $("meanLabel").textContent = "ค่าเฉลี่ย";
+      $("meanVal").textContent = "–";
+      tag.hidden = true; mark.hidden = true;
+      return;
+    }
+    var m = mean(ok);
+    $("meanLabel").textContent = "ค่าเฉลี่ย " + ok.length + " ตัวอย่าง";
+    $("meanVal").textContent = fmt(m);
+    tag.textContent = phWord(m);
+    tag.style.setProperty("--h", hueFor(m));
+    tag.hidden = false;
+    mark.style.left = Math.max(0, Math.min(100, m / 14 * 100)) + "%";
+    mark.hidden = false;
+  }
+  function clearSamples() {
+    phIn.forEach(function (el) { el.value = ""; });
+    $("note").value = "";
+    updateLive();
+  }
+  function exitEdit() {
+    editId = null;
+    $("banner").hidden = true;
+    $("cancelEdit").hidden = true;
+    $("save").textContent = "บันทึก";
+  }
+  function startEdit(id) {
+    var r = records.find(function (x) { return x.id === id; });
+    if (!r) return;
+    editId = id;
+    $("date").value = r.date;
+    form.elements.place.value = r.place;
+    form.elements.area.value = String(r.area);
+    form.elements.period.value = r.period;
+    phIn.forEach(function (el, i) { el.value = r.ph[i]; });
+    $("note").value = r.note || "";
+    updateLive();
+    $("banner").textContent = "กำลังแก้ไขรายการวันที่ " + fmtDate(r.date) + " · " + PLACES[r.place] + " · พื้นที่ " + r.area + " · " + PERIODS[r.period];
+    $("banner").hidden = false;
+    $("cancelEdit").hidden = false;
+    $("save").textContent = "บันทึกการแก้ไข";
+    setStatus("");
+    showTab("new");
+    window.scrollTo(0, 0);
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var date = $("date").value;
+    var vals = phIn.map(readPh);
+    if (!date) { setStatus("เลือกวันที่เก็บตัวอย่างก่อน", true); return; }
+    if (!vals.every(validPh)) { setStatus("กรอกค่า pH ให้ครบทั้ง 3 ตัวอย่าง โดยแต่ละค่าอยู่ระหว่าง 0 ถึง 14", true); return; }
+    var existing = editId ? records.find(function (r) { return r.id === editId; }) : null;
+    var rec = {
+      id: editId || newId(),
+      date: date,
+      place: form.elements.place.value,
+      area: Number(form.elements.area.value),
+      period: form.elements.period.value,
+      ph: vals,
+      note: $("note").value.trim(),
+      createdAt: existing && existing.createdAt ? existing.createdAt : Date.now()
+    };
+    var btn = $("save");
+    btn.disabled = true;
+    persist(rec).then(function () {
+      var wasEdit = !!editId;
+      setStatus((wasEdit ? "แก้ไขแล้ว: " : "บันทึกแล้ว: ") + PLACES[rec.place] + " · พื้นที่ " + rec.area + " · " + PERIODS[rec.period]);
+      if (wasEdit) exitEdit();
+      clearSamples();
+      phIn[0].focus();
+    }).catch(function (err) {
+      setStatus(writeError(err), true);
+    }).then(function () { btn.disabled = false; });
+  });
+  $("cancelEdit").addEventListener("click", function () {
+    exitEdit(); clearSamples(); setStatus("ยกเลิกการแก้ไขแล้ว");
+  });
+  phIn.forEach(function (el) { el.addEventListener("input", updateLive); });
+
+  /* ---------- history ---------- */
+  function validRecord(r) {
+    return r && typeof r.date === "string" && PLACES[r.place] && PERIODS[r.period] &&
+      Array.isArray(r.ph) && r.ph.length === 3 && r.ph.every(validPh);
+  }
+  function filtered() {
+    var fp = $("fPlace").value, fa = $("fArea").value, ft = $("fPeriod").value;
+    return records.filter(validRecord).filter(function (r) {
+      return (!fp || r.place === fp) && (!fa || String(r.area) === fa) && (!ft || r.period === ft);
+    }).sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+  }
+  function entryHtml(r) {
+    var m = mean(r.ph);
+    var chips = r.ph.map(function (v, i) {
+      return '<span class="chip" style="--h:' + hueFor(v) + '"><small>ตัวอย่าง ' + (i + 1) + '</small><b>' + fmt(v) + '</b></span>';
+    }).join("");
+    chips += '<span class="chip mean" style="--h:' + hueFor(m) + '"><small>เฉลี่ย</small><b>' + fmt(m) + '</b></span>';
+    var acts = confirmId === r.id
+      ? '<span class="confirm-q">ลบรายการนี้?</span><button class="link danger" type="button" data-act="del-yes" data-id="' + esc(r.id) + '">ลบ</button><button class="link" type="button" data-act="del-no" data-id="' + esc(r.id) + '">ยกเลิก</button>'
+      : '<button class="link" type="button" data-act="edit" data-id="' + esc(r.id) + '">แก้ไข</button><button class="link danger" type="button" data-act="del" data-id="' + esc(r.id) + '">ลบ</button>';
+    return '<article class="entry">' +
+      '<div class="meta"><strong>' + esc(PLACES[r.place]) + '</strong><span class="dim">พื้นที่ ' + esc(r.area) + '</span>' +
+      '<span class="pill">' + (r.period === "day" ? SUN : MOON) + esc(PERIODS[r.period]) + '</span></div>' +
+      '<div class="chips">' + chips + '</div>' +
+      (r.note ? '<p class="note">' + esc(r.note) + '</p>' : '') +
+      '<div class="row-actions">' + acts + '</div></article>';
+  }
+  function renderHistory() {
+    $("count").textContent = loaded ? records.filter(validRecord).length + " รายการ" : "";
+    var list = $("list"), summary = $("summary");
+    if (!loaded) { summary.textContent = "กำลังโหลด…"; list.innerHTML = ""; return; }
+    var all = records.filter(validRecord).length;
+    var rows = filtered();
+    if (!all) {
+      summary.textContent = "";
+      $("csv").hidden = true;
+      list.innerHTML = '<div class="empty">ยังไม่มีบันทึก<br>ไปที่แท็บ “บันทึกใหม่” เพื่อเพิ่มรายการแรก</div>';
+      return;
+    }
+    if (!rows.length) {
+      summary.innerHTML = "แสดง <b>0</b> จาก <b>" + all + "</b> รายการ";
+      $("csv").hidden = true;
+      list.innerHTML = '<div class="empty">ไม่พบรายการที่ตรงกับตัวกรอง</div>';
+      return;
+    }
+    var avg = mean(rows.map(function (r) { return mean(r.ph); }));
+    summary.innerHTML = "แสดง <b>" + rows.length + "</b> จาก <b>" + all + "</b> รายการ · pH เฉลี่ย <b>" + fmt(avg) + "</b>";
+    $("csv").hidden = !downloads;
+    var html = "", curDate = null;
+    rows.forEach(function (r) {
+      if (r.date !== curDate) {
+        if (curDate !== null) html += "</div>";
+        curDate = r.date;
+        html += '<div class="day"><h3>' + esc(fmtDate(r.date)) + "</h3>";
+      }
+      html += entryHtml(r);
+    });
+    html += "</div>";
+    list.innerHTML = html;
+  }
+  $("list").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-act]");
+    if (!b) return;
+    var id = b.getAttribute("data-id"), act = b.getAttribute("data-act");
+    if (act === "edit") startEdit(id);
+    else if (act === "del") { confirmId = id; renderHistory(); }
+    else if (act === "del-no") { confirmId = null; renderHistory(); }
+    else if (act === "del-yes") {
+      removeRec(id).then(function () { confirmId = null; renderHistory(); }).catch(function (err) {
+        confirmId = null; renderHistory();
+        var h = $("histStatus"); h.hidden = false; h.className = "status err"; h.textContent = writeError(err).replace("บันทึก", "ลบ");
+      });
+    }
+  });
+  ["fPlace", "fArea", "fPeriod"].forEach(function (id) {
+    $(id).addEventListener("change", function () { confirmId = null; renderHistory(); });
+  });
+
+  function csvCell(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }
+  $("csv").addEventListener("click", function () {
+    if (!downloads) return;
+    var rows = filtered().slice().reverse();
+    var lines = [["วันที่", "สถานที่", "พื้นที่", "ช่วงเวลา", "pH ตัวอย่าง 1", "pH ตัวอย่าง 2", "pH ตัวอย่าง 3", "ค่าเฉลี่ย", "หมายเหตุ"].map(csvCell).join(",")];
+    rows.forEach(function (r) {
+      lines.push([r.date, PLACES[r.place], "พื้นที่ " + r.area, PERIODS[r.period], r.ph[0], r.ph[1], r.ph[2], fmt(mean(r.ph)), r.note || ""].map(csvCell).join(","));
+    });
+    var h = $("histStatus");
+    downloads.save({ filename: "soil-ph-" + todayIso() + ".csv", data: "﻿" + lines.join("\r\n") }).then(function () {
+      h.hidden = true;
+    }).catch(function (err) {
+      if (err && err.code === "declined") return;
+      h.hidden = false; h.className = "status err"; h.textContent = "ดาวน์โหลดไม่สำเร็จในหน้านี้";
+    });
+  });
+
+  /* ---------- tabs ---------- */
+  function showTab(name) {
+    var isNew = name !== "history";
+    $("panel-new").hidden = !isNew;
+    $("panel-history").hidden = isNew;
+    $("tab-new").setAttribute("aria-selected", String(isNew));
+    $("tab-history").setAttribute("aria-selected", String(!isNew));
+    var want = isNew ? "new" : "history";
+    if (location.hash !== "#" + want) { try { location.hash = want; } catch (e) {} }
+  }
+  $("tab-new").addEventListener("click", function () { showTab("new"); });
+  $("tab-history").addEventListener("click", function () { confirmId = null; renderHistory(); showTab("history"); });
+  window.addEventListener("hashchange", function () {
+    var n = location.hash === "#history" ? "history" : "new";
+    var cur = $("panel-history").hidden ? "new" : "history";
+    if (n !== cur) showTab(n);
+  });
+
+  /* ---------- start ---------- */
+  function setFoot() {
+    $("foot").textContent = mode === "db"
+      ? "ข้อมูลเก็บไว้กับหน้านี้ เปิดจากเครื่องไหนก็เห็นรายการเดิม"
+      : "รายการเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ถ้าล้างข้อมูลเว็บไซต์ รายการจะหาย ควรดาวน์โหลด CSV สำรองไว้เป็นระยะ";
+  }
+  async function init() {
+    $("date").value = todayIso();
+    buildGradient();
+    updateLive();
+    if (location.hash === "#history") showTab("history");
+    renderHistory();
+
+    var dbNs = null;
+    try { dbNs = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch (e) { dbNs = null; }
+    try { downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) { downloads = null; }
+
+    if (!downloads) downloads = { save: function (o) { return new Promise(function (res) {
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([o.data], { type: "text/csv;charset=utf-8" }));
+      a.download = o.filename; document.body.appendChild(a); a.click(); a.remove(); res({ status: "saved" });
+    }); } };
+
+    if (dbNs) {
+      db = dbNs; mode = "db"; setFoot();
+      var timer = setTimeout(function () {
+        var h = $("histStatus");
+        h.hidden = false; h.className = "status"; h.textContent = "ยังโหลดรายการไม่ได้ ข้อมูลที่เห็นอาจไม่ล่าสุด";
+      }, 10000);
+      db.collection("readings").onSnapshot(function (snap) {
+        clearTimeout(timer);
+        $("histStatus").hidden = true;
+        records = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        loaded = true;
+        renderHistory();
+      }, function () {
+        clearTimeout(timer);
+        loaded = true; renderHistory();
+        var h = $("histStatus");
+        h.hidden = false; h.className = "status err"; h.textContent = "เชื่อมต่อที่เก็บข้อมูลไม่ได้ในตอนนี้";
+      });
+    } else {
+      mode = "local"; setFoot();
+      records = loadLocal();
+      loaded = true;
+      renderHistory();
+    }
+  }
+  init();
+})();
+</script>
+
+</body>
+</html>
